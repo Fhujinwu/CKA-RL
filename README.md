@@ -8,7 +8,7 @@
 
 <h4 align="center"></a>
      
->[Jinwu Hu](https://scholar.google.com/citations?user=XmqjPi0AAAAJ&hl=en), ZiHao Lian, [Zhiqun Wen](https://scholar.google.com/citations?hl=en&user=w_O5JUYAAAAJ), ChenghaoLi, [Guohao Chen](https://scholar.google.com/citations?user=HZbzdNEAAAAJ&hl=en&oi=ao), Xutao Wen, [Bin Xiao](https://faculty.cqupt.edu.cn/xiaobin/zh_CN/index.htm), [Mingkui Tan](https://tanmingkui.github.io/)\
+>[Jinwu Hu](https://scholar.google.com/citations?user=XmqjPi0AAAAJ&hl=en), [Zihao Lian](https://scholar.google.com/citations?user=mDGNr5cAAAAJ&hl=en), [Zhiqun Wen](https://scholar.google.com/citations?hl=en&user=w_O5JUYAAAAJ), ChenghaoLi, [Guohao Chen](https://scholar.google.com/citations?user=HZbzdNEAAAAJ&hl=en&oi=ao), Xutao Wen, [Bin Xiao](https://faculty.cqupt.edu.cn/xiaobin/zh_CN/index.htm), [Mingkui Tan](https://tanmingkui.github.io/)\
 <sub>South China University of Technology, Pazhou Laboratory</sub>
 
 <p align="center">

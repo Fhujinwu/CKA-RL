@@ -1,0 +1,12 @@
+# JetBrains IDE project files
+.idea/
+
+# 
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.swp
+.DS_Store
+.vscode/
