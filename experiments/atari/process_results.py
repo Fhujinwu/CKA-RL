@@ -38,6 +38,21 @@ METHOD_NAMES = {
     "CbpNet": "CbpNet",
 }
 
+def get_available_methods(data):
+    available = set()
+
+    for task_data in data.values():
+        available.update(task_data.keys())
+
+    return [method for method in METHOD_NAMES if method in available]
+
+def method_from_col(col):
+    for method in METHOD_NAMES:
+        if col.startswith(f"{method}-"):
+            return method
+
+    return None
+
 def parse_args():
     # fmt: off
     parser = argparse.ArgumentParser()
@@ -65,6 +80,7 @@ def chunk_average(x, w):
 
 def compute_success(
     df,
+    success_score_used=None,
     ma_w_1=10,
     num_pts_sc=100,
     sc_percent=0.8,
@@ -73,7 +89,11 @@ def compute_success(
     ma_std_extra=10,
 ):
     data_cols = df.columns[df.columns.str.endswith("episodic_return")]
-    methods = [col.split("-")[0] for col in data_cols]
+
+    method_cols = [(method_from_col(col), col) for col in data_cols]
+    method_cols = [(method, col) for method, col in method_cols if method is not None]
+    methods = [method for method, _ in method_cols]
+    data_cols = [col for _, col in method_cols]
 
     rets = []
     returns = {}
@@ -88,6 +108,9 @@ def compute_success(
         rets.append(y[:-num_pts_sc].mean())
 
     success_score = sc_percent * np.mean(rets)
+
+    if success_score_used is not None:
+        success_score = success_score_used
 
     data = {}
     for method in methods:
@@ -133,7 +156,10 @@ def compute_success(
 
 def compute_forward_transfer(data):
     baseline_method = "Baseline"
-    methods = list(METHOD_NAMES.keys())
+    methods = [
+        method for method in METHOD_NAMES
+        if all(method in task_data for task_data in data.values())
+    ]
 
     ft_data = {}
     for task_id in data.keys():
@@ -182,7 +208,10 @@ def compute_forward_transfer(data):
     #
     # Printing the results in a pretty table
     #
-    methods = list(METHOD_NAMES.keys())
+    methods = [
+        method for method in METHOD_NAMES
+        if all(method in task_data for task_data in data.values())
+    ]
     table = []
     for task_id in sorted(ft_data.keys()):
         row = [task_id]
@@ -217,7 +246,10 @@ def compute_forward_transfer(data):
     return ft_data
 
 def compute_final_performance(data):
-    methods = list(METHOD_NAMES.keys())
+    methods = [
+        method for method in METHOD_NAMES
+        if all(method in task_data for task_data in data.values())
+    ]
     table = []
     for task_id in sorted(data.keys()):
         row = [task_id]
@@ -249,7 +281,32 @@ def compute_final_performance(data):
 
 if __name__ == "__main__":
     args = parse_args()
-
+    
+    space_invaders_success_scores_used = [
+      279.848, 326.349, 323.880,
+      274.811, 369.782, 243.812,
+      332.885, 333.781, 462.198, 383.627,
+    ]
+    
+    freeway_success_scores_used = [
+        21.1455, 19.177, 10.5049,
+        21.7043, 23.5458, 11.9761,
+        11.6078, 17.7292,
+    ]
+    
+    none_success_scores_used = [
+        None, None, None,
+        None, None, None,
+        None, None, None, None,
+    ]
+    
+    if "Freeway" in args.data_dir:
+        success_scores_used = freeway_success_scores_used
+    elif "SpaceInvaders" in args.data_dir:
+        success_scores_used = space_invaders_success_scores_used
+    else:
+        success_scores_used = none_success_scores_used
+    
     env = os.path.basename(args.data_dir)
 
     data = {}
@@ -265,7 +322,7 @@ if __name__ == "__main__":
                 cfg = SETTINGS[k]
                 break
         print(task_id)
-        data_task, success_score = compute_success(df, **cfg)
+        data_task, success_score = compute_success(df, success_score_used=success_scores_used[task_id], **cfg)
         data[task_id] = data_task
         scores[task_id] = success_score
 
