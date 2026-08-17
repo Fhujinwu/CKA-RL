@@ -33,6 +33,8 @@ class CkaRlAgent(nn.Module):
         self.fuse_heads = fuse_heads
         self.pool_size = pool_size
 
+        if self.fuse_shared:
+            raise NotImplementedError("Shared fusion is not supported for Meta-World CKA-RL")
         assert(fuse_heads or fuse_shared)
         self.setup_vectors(base_dir, latest_dir)
         # Alpha Setting

@@ -87,8 +87,24 @@ class Args:
     """experiment tag"""
     pool_size: int = 9
     """pool size"""
+    fuse_heads: bool = True
+    """fuse output heads with knowledge vectors"""
+    delta_theta_mode: str = "T"
+    """'T' = no merge on save, 'TAT' = merge alpha into weight on save"""
+    alpha_init: str = "Randn"
+    """Randn / Uniform / Major"""
+    alpha_major: float = 0.6
+    """alpha value for Major init"""
+    alpha_factor: float = 1e-3
+    """alpha factor for Uniform init"""
+    fix_alpha: bool = False
+    """freeze alpha (untrainable)"""
     encoder_from_base: bool = False
     """load encoder from base_dir"""
+    alpha_learning_rate: float = 1e-3
+    """the learning rate of alpha optimizer (only for cka-rl)"""
+    anneal_alpha_lr: bool = True
+    """Toggle learning rate annealing for alpha optimizer"""
 
 def make_env(task_id):
     def thunk():
@@ -284,9 +300,14 @@ if __name__ == "__main__":
             obs_dim=obs_dim,
             act_dim=act_dim,
             fuse_shared=False,
-            fuse_heads=True,
+            fuse_heads=args.fuse_heads,
             pool_size=args.pool_size,
             encoder_from_base=args.encoder_from_base,
+            delta_theta_mode=args.delta_theta_mode,
+            alpha_init=args.alpha_init,
+            alpha_major=args.alpha_major,
+            alpha_factor=args.alpha_factor,
+            fix_alpha=args.fix_alpha,
         )
     elif args.model_type == 'masknet':
         if len(args.prev_units) == 0:
@@ -334,7 +355,17 @@ if __name__ == "__main__":
     q_optimizer = optim.Adam(
         list(qf1.parameters()) + list(qf2.parameters()), lr=args.q_lr
     )
-    actor_optimizer = optim.Adam(list(actor.parameters()), lr=args.policy_lr)
+    ao_exist = False  # separate alpha optimizer exists?
+    if args.model_type == "cka-rl":
+        main_params = [p for n, p in actor.named_parameters() if p.requires_grad and "alpha" not in n]
+        alpha_params = [p for n, p in actor.named_parameters() if p.requires_grad and "alpha" in n]
+        actor_optimizer = optim.Adam(main_params, lr=args.policy_lr)
+        if len(alpha_params) > 0:
+            ao_exist = True
+            alpha_optimizer = optim.Adam(alpha_params, lr=args.alpha_learning_rate, eps=1e-5)
+            print(f"Alpha optimizer created, LR={args.alpha_learning_rate}, params={len(alpha_params)}")
+    else:
+        actor_optimizer = optim.Adam(list(actor.parameters()), lr=args.policy_lr)
     if args.model_type == 'cbpnet':
         actor_optimizer = AdamGnT(actor.parameters(), lr=args.policy_lr, eps=1e-5)
         GnT = GnT(net=actor.model.fc.net, opt=actor_optimizer,replacement_rate=1e-3, decay_rate=0.99, device=device,
@@ -439,6 +470,9 @@ if __name__ == "__main__":
             q_optimizer.step()
 
             if global_step % args.policy_frequency == 0:  # TD 3 Delayed update support
+                if args.anneal_alpha_lr and ao_exist:
+                    frac = max(0.0, 1.0 - (global_step - args.learning_starts) / (args.total_timesteps - args.learning_starts))
+                    alpha_optimizer.param_groups[0]["lr"] = frac * args.alpha_learning_rate
                 for _ in range(
                     args.policy_frequency
                 ):  # compensate for the delay by doing 'actor_update_interval' instead of 1
@@ -449,6 +483,8 @@ if __name__ == "__main__":
                     actor_loss = ((alpha * log_pi) - min_qf_pi).mean()
 
                     actor_optimizer.zero_grad()
+                    if ao_exist:
+                        alpha_optimizer.zero_grad()
                     actor_loss.backward()
                     if args.model_type == "packnet":
                         if global_step >= packnet_retrain_start:
@@ -456,6 +492,8 @@ if __name__ == "__main__":
                             actor.model.start_retraining()
                         actor.model.before_update()
                     actor_optimizer.step()
+                    if ao_exist:
+                        alpha_optimizer.step()
 
                     if args.autotune:
                         with torch.no_grad():
@@ -502,6 +540,10 @@ if __name__ == "__main__":
                     int(global_step / (time.time() - start_time)),
                     global_step,
                 )
+                if ao_exist:
+                    writer.add_scalar(
+                        "charts/alpha_learning_rate", alpha_optimizer.param_groups[0]["lr"], global_step
+                    )
                 if args.autotune:
                     writer.add_scalar(
                         "losses/alpha_loss", alpha_loss.item(), global_step
